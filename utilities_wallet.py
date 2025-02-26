@@ -180,9 +180,7 @@ def create_a_sp_wallet(wallet_path, wallet_password):
     wallet_info["scan_private_key"] = scan_privkey
     wallet_info["spend_pub_key"] = spend_pubkey
     wallet_info["scan_pub_key"] = scan_pubkey
-    wallet_info["used_labeled_key"] = dict()
-    wallet_info["used_labeled_key"]["B_0"] = B_0
-    wallet_info["used_labeled_key"]["B_1"] = B_1
+    wallet_info["used_labeled_key"] = {"B_0":B_0, "B_1":B_1}
     wallet_info["unspend_transaction_outputs"] = list()
     wallet_info["spent_transaction_outputs"] = list()
 
@@ -230,38 +228,50 @@ def read_scan_progress(wallet_path):
     return hash_list
 
 
+def clean_scan_progress(wallet_path):
+    # to control the hash list's size, to present last 50 blocks scanned
+    current_hash_list = read_scan_progress(wallet_path)
+    if len(current_hash_list) <= 51:
+        pass
+    else:
+        new_hash_list = current_hash_list[-50:]
+        new_hash_list.insert(0, "scanned_blocks_hash, only grow")
+        from os import path
+        with open(path.join(wallet_path, "scanned_blocks"), "w") as f:
+            f.write("\n".join(new_hash_list))
+
+
 def get_possible_spending_key(sp_wallet_info):
-    possible_key_list = []
-    original_spend_pubkey_bytes = sp_wallet_info["spend_pub_key"]
+    possible_key_list = [sp_wallet_info["spend_pub_key"]]
     for labeled_pubkey in sp_wallet_info["used_labeled_key"]:
-        possible_key_list.append(labeled_pubkey)
+        possible_key_list.append(sp_wallet_info["used_labeled_key"][labeled_pubkey])
+    print(possible_key_list)
     return possible_key_list
 
 
 def taproot_output_filter(a_raw_transaction_vout):
-    taproot_outputs = []
-    for tx_output in a_raw_transaction_vout:
-        if tx_output["scriptPubKey"]["type"] == "witness_v1_taproot":
-            taproot_outputs.append(tx_output)
+    taproot_outputs = [tx_output for tx_output in a_raw_transaction_vout
+                       if tx_output["scriptPubKey"]["type"] == "witness_v1_taproot"]
     return taproot_outputs
 
 
 def calcul_possible_x_only_key_by(possible_spending_key, current_t_k, import_modle):
     from utilities_keys import secp256k1_point_addition
-    T_k = import_modle.ec_point(int.from_bytes(current_t_k))
+    T_k = import_modle.Key(import_key=int.from_bytes(current_t_k))
+    T_k_tuple = T_k.public_point()
     x_only_key_list = []
-    for key_bytes in possible_spending_key:
-        key_itself = import_modle.Key(import_key=key_bytes)
+    for key_hex in possible_spending_key:
+        key_itself = import_modle.Key(import_key=key_hex)
         key_point = key_itself.public_point()
-        sum_key_point = secp256k1_point_addition(key_point, T_k)
+        sum_key_point = secp256k1_point_addition(key_point, T_k_tuple)
         # sum_key_point contains x and y in int format
         # we need x_only_key in hex
-        x_only_key_list.append(hex(sum_key_point(0)))
+        x_only_key_list.append(hex(sum_key_point[0]))
     return x_only_key_list
 
 
 def check_taproot_output_match(target_taproot_output, calculed_possible_x_only_key_list):
-    for n in range(0, calculed_possible_x_only_key_list):
+    for n in range(0, len(calculed_possible_x_only_key_list)):
         if target_taproot_output["scriptPubKey"]["hex"][4:] == calculed_possible_x_only_key_list[n]:
             return n
 
@@ -282,8 +292,6 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
     # now, check if already scanned transaction is reverted due to re-organization
     wallet_info["unspend_transaction_outputs"] = check_if_tx_is_reorganized(wallet_info["unspend_transaction_outputs"],
                                                                             rpc)
-    wallet_info["spent_transaction_outputs"] = check_if_tx_is_reorganized(wallet_info["spent_transaction_outputs"],
-                                                                          rpc)
     write_a_sp_wallet_info(wallet_path, wallet_info)
 
     # then, based on scanned block record, start to scan blocks
@@ -307,15 +315,16 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
     for entry in scan_task:
         the_block_hash = entry[1]
         block_height = entry[0]
-        eligible_tx_list = utilities_scan.read_eligible_txs_from(network_store, block_height)
+        eligible_tx_list = utilities_scan.read_eligible_txs_from(network_store, str(block_height))
         print("scanning silent payments for you in the block in height {}".format(block_height))
         for one_tx in eligible_tx_list:
+            # print(one_tx)
             # every one_tx contains txid, input_hash, and sender key(A)
             raw_tx_outputs = rpc.getrawtransaction(one_tx[0], True, the_block_hash)["vout"]
             taproot_outputs = taproot_output_filter(raw_tx_outputs)
             sender_key_point = one_tx[2]
             input_hash_int = int(one_tx[1], 16)
-            scan_privkey_int = int.from_bytes(wallet_info["scan_private_key"])
+            scan_privkey_int = int(wallet_info["scan_private_key"], 16)
             ecdh_shared_secret = keys.ec_point_multiplication(sender_key_point, input_hash_int * scan_privkey_int)
 
             k = 0

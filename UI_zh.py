@@ -217,35 +217,39 @@ def generate_sp_address(wallet_info, wallet_path):
     print("每个花费密钥都可以编码成一个独一无二的静默支付地址。")
     available_label = [str(n) for n in range(1, label_key_number + 1)]
     print("因此，您现在可以使用的标签有：{}".format(", ".join(available_label)))
-    label_choice = input("请使用数字，从上述标签中选择你要使用的标签。如果输入其它数字，将递增数字、产生新标签和相应的地址。")
+    label_choice = input("请使用数字，从上述标签中选择你要使用的标签。如果输入其它数字，将递增数字、产生新标签和相应的地址：\n")
     try:
-        label_choice_int = int(label_choice)
-        if label_choice_int > 0 and label_choice_int <= label_key_number:
-            key_name = "B_{}".format(label_choice)
-            spend_key_in_address = wallet_info["used_labeled_key"][key_name]
-        else:
-            from utilities_keys import get_a_labeled_spend_key, ser_public_key
-            from bitcoinlib import keys
-            from utilities_wallet import write_a_sp_wallet_info
-            key_name = "B_{}".format(str(label_key_number+1))
-            original_spend_pub_bytes = wallet_info["spend_pub_key"]
-            original_spend_pub_key = keys.Key(import_key=original_spend_pub_bytes)
-            original_spend_pub_point = original_spend_pub_key.public_point()
-            spend_key_in_address = get_a_labeled_spend_key(original_spend_pub_point,
-                                                           wallet_info["scan_private_key"], label_key_number+1)
-            wallet_info["used_labeled_key"][key_name] = spend_key_in_address
-            write_a_sp_wallet_info(wallet_path, wallet_info)
-        import bech32m
-        from bech32m import Encoding
-        data_need_encord = int(0).to_bytes() + wallet_info["scan_pub_key"] + ser_public_key(spend_key_in_address)
-        mainnet_address = bech32m.bech32_encode("sp", data_need_encord, Encoding.BECH32M)
-        testnet_address = bech32m.bech32_encode("tsp", data_need_encord, Encoding.BECH32M)
-        print("用于主网的静默支付地址：{}".format(mainnet_address))
-        print("用于测试网的静默支付地址：{}".format(testnet_address))
+        int(label_choice)
     except:
         print("您输入的并非数字。请重新来过。")
         return
 
+    label_choice_int = int(label_choice)
+    if label_choice_int > 0 and label_choice_int <= label_key_number:
+        key_name = "B_{}".format(label_choice)
+        spend_key_in_address = bytes.fromhex(wallet_info["used_labeled_key"][key_name])
+    else:
+        from utilities_keys import get_a_labeled_spend_key, ser_public_key
+        from bitcoinlib import keys
+        from utilities_wallet import write_a_sp_wallet_info
+        key_name = "B_{}".format(str(label_key_number+1))
+        original_spend_pub_hex = wallet_info["spend_pub_key"]
+        original_spend_pub_key = keys.Key(import_key=original_spend_pub_hex)
+        original_spend_pub_point = original_spend_pub_key.public_point()
+        spend_key_in_address = get_a_labeled_spend_key(original_spend_pub_point,
+                                                       bytes.fromhex(wallet_info["scan_private_key"]), label_key_number+1)
+        wallet_info["used_labeled_key"][key_name] = ser_public_key(spend_key_in_address).hex()
+        write_a_sp_wallet_info(wallet_path, wallet_info)
+
+    from utilities_keys import ser_public_key
+    import bech32m
+    from bech32m import Encoding
+    data_need_encord_list = bech32m.convertbits(int(0).to_bytes() + bytes.fromhex(wallet_info["scan_pub_key"]) +
+                                 ser_public_key(spend_key_in_address), 8, 5, True)
+    mainnet_address = bech32m.bech32_encode("sp", data_need_encord_list, Encoding.BECH32M)
+    testnet_address = bech32m.bech32_encode("tsp", data_need_encord_list, Encoding.BECH32M)
+    print("用于主网的静默支付地址：{}".format(mainnet_address))
+    print("用于测试网的静默支付地址：{}".format(testnet_address))
 
 
 def sp_wallet_mode(node_rpc, network):
@@ -285,7 +289,7 @@ def sp_wallet_mode(node_rpc, network):
         elif select == "了解余额":
             amount = utilities_wallet.know_a_sp_wallet_balance(wallet_info)
             print("本钱包拥有 {} BTC。".format(amount))
-        elif select == "获取收款地址":
+        elif select == "生成静默支付地址":
             generate_sp_address(wallet_info, wallet_path)
 
 

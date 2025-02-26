@@ -105,14 +105,19 @@ def initial_sp_keys(password: str):
     spend_sec_key_store = spend_key.encrypt(password)
     scan_sec_key_store = scan_key.as_bytes(private=True)
 
-    spend_pub_key_store = spend_key.as_bytes()
-    scan_pub_key_store = scan_key.as_bytes()
+    spend_pub_key_store = spend_key.as_hex()
+    scan_pub_key_store = scan_key.as_hex()
 
     # Get labeled spend key (B_m in BIP352) to prepare sp address
     spend_key_public_point = spend_key.public_point()
     B_0_point = get_a_labeled_spend_key(spend_key_public_point, scan_sec_key_store, 0)
-    B_0 = ser_public_key(B_0_point)
+    B_0 = ser_public_key(B_0_point).hex()
     B_1_point = get_a_labeled_spend_key(spend_key_public_point, scan_sec_key_store, 1)
-    B_1 = ser_public_key(B_1_point)
+    B_1 = ser_public_key(B_1_point).hex()
 
-    return spend_sec_key_store, scan_sec_key_store, spend_pub_key_store, scan_pub_key_store, B_0, B_1
+    return spend_sec_key_store, scan_sec_key_store.hex(), spend_pub_key_store, scan_pub_key_store, B_0, B_1
+
+
+if __name__ == '__main__':
+    for something in initial_sp_keys("123"):
+        print(something)

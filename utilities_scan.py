@@ -178,6 +178,9 @@ def extract_input_hash_and_sender_key(transaction_vin: list, their_script_pub_ke
         else:
             pass
 
+    if len(pubkeys) == 0:
+        return False, False
+
     # find the smallest outpoint
     smallest_outpoint = min(outpoints)
     # sum up the pubkeys and get its uncompressed form
@@ -206,8 +209,9 @@ def deal_with_a_block(block_height: int, block_hash: str, rpc):
         if eligible_transactions_check_by(tx['vout'], input_script_pub_keys, tx['vin']) is True:
             # extract reusable info: input hash and sender key
             input_hash, sender_key = extract_input_hash_and_sender_key(tx['vin'], input_script_pub_keys)
-            content.append('{},{},{}'.format(entry, input_hash.hex(), sender_key))
-            print(entry)
+            if sender_key is not False:
+                content.append('{},{},{}'.format(entry, input_hash.hex(), sender_key))
+                # print(entry)
         else:
             pass
 
@@ -279,8 +283,11 @@ def update_time_chain(rpc, network_store, mode=0):
     highest = rpc.getblockcount()
     current_time_signal = prase_time_signal(current_time_chain[-1])
     current_height = current_time_signal[0]
-    current_time_chain = time_chain_complete(current_time_chain, current_height, highest+1, rpc)
-    
+    if current_height == highest:
+        pass
+    else:
+        current_time_chain = time_chain_complete(current_time_chain, current_height, highest+1, rpc)
+
     if mode == 0:
         write_time_chain(network_store, current_time_chain)
     elif mode == 1:
@@ -432,7 +439,7 @@ def read_eligible_txs_from(network_store, block_height):
         # tx_input_hash
         tx_info.append(line_chip[1])
         # tx_sender_(pub)key
-        tx_info.append((line_chip[2][1:], line_chip[3][:-1]))
+        tx_info.append((int(line_chip[2][1:]), int(line_chip[3][1:-1])))
         eligible_txs.append(tx_info)
 
     return eligible_txs
