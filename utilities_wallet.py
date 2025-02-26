@@ -100,8 +100,12 @@ def send_a_sp_payment_from_a_rg_wallet(input_coins, payment_intention, wallet_rp
     if sp_pubkey is False:
         return "sp_address_error"
     else:
-        B_scan = sp_pubkey[0:33]
-        B_m = sp_pubkey[33:]
+        B_scan = bytes()
+        for n in sp_pubkey[0:33]:
+            B_scan += n.bytes()
+        B_m = bytes()
+        for n in sp_pubkey[33:]:
+            B_m += n.bytes()
 
     # Then, get the input_hash and sender_private_key from inputs selected by the user
     from utilities_scan import get_bip352_outpoint
