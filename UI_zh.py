@@ -244,10 +244,10 @@ def generate_sp_address(wallet_info, wallet_path):
     from utilities_keys import ser_public_key
     import bech32m
     from bech32m import Encoding
-    data_need_encord_list = bech32m.convertbits(int(0).to_bytes() + bytes.fromhex(wallet_info["scan_pub_key"]) +
+    data_need_encord_list = bech32m.convertbits(bytes.fromhex(wallet_info["scan_pub_key"]) +
                                  ser_public_key(spend_key_in_address), 8, 5, True)
-    mainnet_address = bech32m.bech32_encode("sp", data_need_encord_list, Encoding.BECH32M)
-    testnet_address = bech32m.bech32_encode("tsp", data_need_encord_list, Encoding.BECH32M)
+    mainnet_address = bech32m.bech32_encode("sp", [0] + data_need_encord_list, Encoding.BECH32M)
+    testnet_address = bech32m.bech32_encode("tsp", [0] + data_need_encord_list, Encoding.BECH32M)
     print("用于主网的静默支付地址：{}".format(mainnet_address))
     print("用于测试网的静默支付地址：{}".format(testnet_address))
 
@@ -305,15 +305,16 @@ def gudugudu():
     from os import path
     from os import makedirs
     network_store = path.join('./sp-transactions-candidate', node_info['network'])
+    time_chain_store_loca = path.join(network_store, "time_chain")
     print(network_store)
     if not path.exists(network_store):
         print("正在为新网络创建存储目录...")
         makedirs(network_store)
-        utilities_scan.initial_time_chain(rpc, network_store)
+        utilities_scan.initial_time_chain(rpc, time_chain_store_loca)
         print("创建完成")
     else:
         print("正在为使用过的网络追赶时间链的进展...")
-        utilities_scan.update_time_chain(rpc, network_store)
+        utilities_scan.update_time_chain(rpc, time_chain_store_loca)
         print("追上了")
 
     print("\n欢迎使用 Gudugudu 钱包！\n")

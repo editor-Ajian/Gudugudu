@@ -195,7 +195,7 @@ def create_a_sp_wallet(wallet_path, wallet_password):
         json.dump(wallet_info, f)
 
     with open(path.join(wallet_path, "scanned_blocks"), "w") as f:
-        f.write("scanned_blocks_hash, only grow\n")
+        f.write("last_scanned_blocks_hash\n")
 
     return wallet_info
 
@@ -239,7 +239,7 @@ def clean_scan_progress(wallet_path):
         pass
     else:
         new_hash_list = current_hash_list[-50:]
-        new_hash_list.insert(0, "scanned_blocks_hash, only grow")
+        new_hash_list.insert(0, "last_scanned_blocks_hash")
         from os import path
         with open(path.join(wallet_path, "scanned_blocks"), "w") as f:
             f.write("\n".join(new_hash_list))
@@ -249,14 +249,8 @@ def get_possible_spending_key(sp_wallet_info):
     possible_key_list = [sp_wallet_info["spend_pub_key"]]
     for labeled_pubkey in sp_wallet_info["used_labeled_key"]:
         possible_key_list.append(sp_wallet_info["used_labeled_key"][labeled_pubkey])
-    print(possible_key_list)
+    # print(possible_key_list)
     return possible_key_list
-
-
-def taproot_output_filter(a_raw_transaction_vout):
-    taproot_outputs = [tx_output for tx_output in a_raw_transaction_vout
-                       if tx_output["scriptPubKey"]["type"] == "witness_v1_taproot"]
-    return taproot_outputs
 
 
 def calcul_possible_x_only_key_by(possible_spending_key, current_t_k, import_modle):
@@ -287,12 +281,13 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
     import utilities_scan
     network_store = path.join('./sp-transactions-candidate', network)
     # if known time chain do not cover wallet entire life, let it go deeper
-    utilities_scan.time_chain_go_deep(network_store, wallet_info["birthday"], rpc)
+    time_chain_store_loca = path.join(network_store, "time_chian")
+    utilities_scan.time_chain_go_deep(time_chain_store_loca, wallet_info["birthday"], rpc)
     # whatever, download blocks until known best
     # the function is able to avoid too much repeat verification
     utilities_scan.download_and_verify_blocks(network_store, rpc)
     # read time chain, go on
-    time_chain = utilities_scan.read_time_chain(network_store)
+    time_chain = utilities_scan.read_time_chain(time_chain_store_loca)
     # now, check if already scanned transaction is reverted due to re-organization
     wallet_info["unspend_transaction_outputs"] = check_if_tx_is_reorganized(wallet_info["unspend_transaction_outputs"],
                                                                             rpc)
@@ -306,7 +301,7 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
     scan_progress = read_scan_progress(wallet_path)
     scan_task = []
     while len(time_chain) > 0:
-        newest_time_signal = utilities_scan.prase_time_signal(time_chain.pop())
+        newest_time_signal = time_chain.pop()
         the_block_hash = newest_time_signal[1]
         if the_block_hash not in scan_progress:
             scan_task.insert(0, newest_time_signal)
@@ -315,8 +310,10 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
 
     from bitcoinlib import keys
     from utilities_keys import tagged_hash, ser_uint32, ser_public_key
+    import time
     possible_key = get_possible_spending_key(wallet_info)
     for entry in scan_task:
+        start_time = time.time()
         the_block_hash = entry[1]
         block_height = entry[0]
         eligible_tx_list = utilities_scan.read_eligible_txs_from(network_store, str(block_height))
@@ -324,10 +321,9 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
         for one_tx in eligible_tx_list:
             # print(one_tx)
             # every one_tx contains txid, input_hash, and sender key(A)
-            raw_tx_outputs = rpc.getrawtransaction(one_tx[0], True, the_block_hash)["vout"]
-            taproot_outputs = taproot_output_filter(raw_tx_outputs)
-            sender_key_point = one_tx[2]
-            input_hash_int = int(one_tx[1], 16)
+            taproot_outputs = one_tx["taproot_outputs"]
+            sender_key_point = one_tx["sender_key"]
+            input_hash_int = int(one_tx["input_hash"], 16)
             scan_privkey_int = int(wallet_info["scan_private_key"], 16)
             ecdh_shared_secret = keys.ec_point_multiplication(sender_key_point, input_hash_int * scan_privkey_int)
 
@@ -345,7 +341,7 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
                     a_coin["txid"] = one_tx[0]
                     a_coin["vout"] = one_output["n"]
                     a_coin["amount"] = one_output["value"]
-                    a_coin["t_k"] = t_k
+                    a_coin["t_k"] = t_k.hex()
                     a_coin["spendable_pubkey"] = possible_key[match_result]
                     a_coin["address"] = one_output["scriptPubKey"]["address"]
                     a_coin["confirm_height"] = block_height
@@ -361,6 +357,9 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
         with open(path.join(wallet_path, "scanned_blocks"), "a") as f:
             f.write(the_block_hash + "\n")
 
+        end_time = time.time()
+        print("Done. Process time is {} s.".format(str(round(end_time - start_time))))
+
     # finally, we need to check if these output is spent
     # (to be build)
     return wallet_info
@@ -372,3 +371,15 @@ def know_a_sp_wallet_balance(wallet_info):
     for coin in wallet_info["unspend_transaction_outputs"]:
         balance += coin["value"]
     return str(balance)
+
+
+def recover_sp_output_privkey(a_coin_t_k, a_coin_spendable_pubkey, wallet_spend_sec_key, wallet_spend_pub_key,
+                              wallet_labeled_pub_key, password):
+    # first, find
+    pass
+
+
+
+
+def send_regular_payment_from_sp_wallet(wallet_info, node_rpc):
+    pass
