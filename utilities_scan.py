@@ -84,7 +84,7 @@ def eligible_transactions_check_by(transaction_vin: list) -> bool:
     for entry in transaction_vin:
         type_info = entry["scriptPubKey"]["type"]
         if type_info[0:7] == "witness":
-            readable_script_pubkey = scripts.Script.parse_hex(entry["scriptPubKey"]["hex"])
+            readable_script_pubkey = scripts.Script.parse_hex(entry["scriptPubKey"]["hex"]).view()
             if readable_script_pubkey[0:4] != "OP_0" and readable_script_pubkey[0:4] != "OP_1":
                 return False
 
@@ -269,7 +269,7 @@ def update_time_chain(rpc, time_chain_store_loca, mode=0):
     if mode == 0:
         write_time_chain(time_chain_store_loca, current_time_chain)
     elif mode == 1:
-        # remember manually write time_chian_file when using mode 1
+        # remember manually write time_chain_file when using mode 1
         return current_time_chain
 
 
@@ -304,7 +304,7 @@ def download_and_verify_blocks(network_store, rpc):
     print("Start to update basic information to best state...")
     from os import path
     import pickle
-    time_chain_file = path.join(network_store, "time_chian")
+    time_chain_file = path.join(network_store, "time_chain")
     time_chain = update_time_chain(rpc, time_chain_file, 1)
     veri_status = verification_status(network_store, 0, {})
 

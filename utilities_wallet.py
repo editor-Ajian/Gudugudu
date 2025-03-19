@@ -281,7 +281,7 @@ def scan_blockchain_for_sp_wallet(wallet_info, wallet_path, network, rpc):
     import utilities_scan
     network_store = path.join('./sp-transactions-candidate', network)
     # if known time chain do not cover wallet entire life, let it go deeper
-    time_chain_store_loca = path.join(network_store, "time_chian")
+    time_chain_store_loca = path.join(network_store, "time_chain")
     utilities_scan.time_chain_go_deep(time_chain_store_loca, wallet_info["birthday"], rpc)
     # whatever, download blocks until known best
     # the function is able to avoid too much repeat verification
